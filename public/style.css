@@ -1,24 +1,13 @@
-<!DOCTYPE html>
-<html lang="pt"><head><meta charset="utf-8"><title>TAPE_07 // SIGNAL LOST</title>
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<link rel="stylesheet" href="style.css"></head><body>
-<div id="scr">
- <section id="m" class="on"><h1>▌SIGNAL<span>_LOST</span></h1><p class="dim">FITA 07 — NÃO REBOBINAR</p>
-  <input id="nick" maxlength="12" placeholder="NICKNAME">
-  <button onclick="go('cr')">CRIAR SALA</button><button onclick="browse()">PROCURAR SALA</button><button onclick="go('jn')">ENTRAR POR CÓDIGO</button>
-  <p id="pg" class="dim"></p></section>
- <section id="cr"><h2>CRIAR SALA</h2>
-  <label>Visibilidade <select id="pub"><option value="1">Pública</option><option value="0">Privada</option></select></label>
-  <label>Mapa <select id="mp"><option value="forest">Floresta Nebulosa</option><option value="mall">Centro Comercial Abandonado</option></select></label>
-  <button onclick="create()">GERAR CÓDIGO E CRIAR</button><button onclick="go('m')">‹ VOLTAR</button></section>
- <section id="br"><h2>SALAS PÚBLICAS</h2><div id="rl"></div><button onclick="browse()">ATUALIZAR</button><button onclick="go('m')">‹ VOLTAR</button></section>
- <section id="jn"><h2>ENTRAR POR CÓDIGO</h2><input id="cd" placeholder="#TH892A"><button onclick="joinCode($('cd').value)">ENTRAR</button><p id="er" class="dim"></p><button onclick="go('m')">‹ VOLTAR</button></section>
- <section id="lb"><h2>LOBBY <span id="lc"></span></h2><div id="pl"></div>
-  <div class="row"><label>Criatura <select id="crs" onchange="S.emit('creature',this.value)"><option value="siren">Siren Head</option><option value="cat">Cartoon Cat</option><option value="horse">Long Horse</option></select></label>
-  <label id="hostc">Monstro <select id="pf" onchange="S.emit('pref',this.value)"></select> Mapa <select id="mp2" onchange="S.emit('map',this.value)"><option value="forest">Floresta</option><option value="mall">Centro Comercial</option></select></label></div>
-  <div id="ch"></div><input id="ci" placeholder="chat + Enter" maxlength="120">
-  <button onclick="S.emit('ready')">PRONTO</button><button id="sb" onclick="S.emit('start')">INICIAR (anfitrião)</button></section>
-</div>
-<div id="gm"><canvas id="c" width="320" height="180"></canvas><div id="hud"></div><div id="msg"></div></div>
-<div id="fx"></div>
-<script src="/socket.io/socket.io.js"></script><script src="game.js"></script></body></html>
+*{box-sizing:border-box}body{margin:0;background:#050607;color:#9fc7b0;font:16px 'Courier New',monospace;overflow:hidden}
+#fx{position:fixed;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(0,0,0,.25) 0 1px,transparent 1px 3px);animation:fl .15s infinite;z-index:9}
+@keyframes fl{50%{opacity:.85}}
+section{display:none;max-width:460px;margin:6vh auto;padding:24px;border:1px solid #2c4a3c;background:#0a100d;box-shadow:0 0 30px #0f2a1e inset;text-shadow:0 0 6px #3f7}
+section.on{display:block}h1{font-size:38px;margin:0;letter-spacing:4px}h1 span{color:#c33}h2{margin-top:0}.dim{color:#567;font-size:13px}
+button,input,select{display:block;width:100%;margin:8px 0;padding:10px;background:#0d1a14;color:#9fc7b0;border:1px solid #2c4a3c;font:inherit}
+button{cursor:pointer}button:hover{background:#1c3a2c;color:#fff}select,label input{display:inline-block;width:auto}label{display:block;margin:8px 0}
+.row{margin:10px 0}#rl div,#pl div{padding:6px;border-bottom:1px solid #1c2e25;cursor:default}#rl div{cursor:pointer}#rl div:hover{background:#1c3a2c}
+#ch{height:90px;overflow:auto;border:1px solid #1c2e25;padding:4px;font-size:13px}.ok{color:#6f6}
+#gm{display:none;position:fixed;inset:0;background:#000}#gm.on{display:block}
+#c{width:100%;height:100%;object-fit:contain;image-rendering:pixelated}
+#hud{position:fixed;left:12px;bottom:12px;font-size:14px;line-height:1.4;text-shadow:0 0 4px #000}
+#msg{position:fixed;top:30%;width:100%;text-align:center;font-size:34px;color:#c33;text-shadow:0 0 12px #f00}
