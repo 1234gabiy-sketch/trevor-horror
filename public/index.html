@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html lang="pt"><head><meta charset="utf-8"><title>TAPE_07 // SIGNAL LOST</title>
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <link rel="stylesheet" href="style.css"></head><body>
 <div id="scr">
- <section id="m" class="on"><h1>▌SIGNAL<span>_LOST</span></h1><p class="dim">FITA 07 — NÃO REBOBINAR | 🪙 <b id="co">0</b> Moedas Susto</p>
+ <section id="dv" class="on"><h1>▌SIGNAL<span>_LOST</span></h1><h2>ONDE VAIS JOGAR?</h2><button onclick="dev('pc')">💻 COMPUTADOR</button><button onclick="dev('mob')">📱 TELEMÓVEL</button></section>
+ <section id="m"><h1>▌SIGNAL<span>_LOST</span></h1><p class="dim">FITA 07 — NÃO REBOBINAR | 🪙 <b id="co">0</b> Moedas Susto</p>
   <input id="nick" maxlength="12" placeholder="NICKNAME">
   <button onclick="go('cr')">CRIAR SALA</button><button onclick="browse()">PROCURAR SALA</button><button onclick="go('jn')">ENTRAR POR CÓDIGO</button><button onclick="shop();go('sh')">LOJA / SKINS</button>
   <p id="pg" class="dim"></p></section>
@@ -20,7 +21,7 @@
   <div id="ch"></div><input id="ci" placeholder="chat + Enter" maxlength="120">
   <button onclick="S.emit('ready')">PRONTO</button><button id="sb" onclick="S.emit('start')">INICIAR (anfitrião)</button></section>
 </div>
-<div id="gm"><canvas id="c" width="320" height="180"></canvas><div id="tm"></div><div id="hud"></div><div id="msg"></div></div>
+<div id="gm"><canvas id="c" width="320" height="180"></canvas><div id="tm"></div><div id="tc"><div id="js"><div id="kn"></div></div><div id="tb"><button data-k="atk">⚔</button><button data-k="run">RUN</button><button data-k="e">E</button><button data-k="q">Q</button><button data-k="f">F</button></div></div><div id="hud"></div><div id="msg"></div></div>
 <div id="mg"><h3 id="mgt">REPARAR GERADOR</h3><div id="mgb"></div></div>
 <div id="fx"></div>
 <script src="/socket.io/socket.io.js"></script><script src="game.js"></script></body></html>
