@@ -108,9 +108,12 @@ onkeydown = e => { if (!G || e.target.tagName == 'INPUT') return; K[e.code] = 1;
   if (e.code == 'KeyQ') S.emit('q'); if (e.code == 'KeyE') S.emit('e');
   if (e.code == 'KeyF') { if (mg) return closeMG(); const i = st.gens.findIndex(g => !g.d && Math.hypot(g.x - m.x, g.y - m.y) < 30); if (m.r == 's' && m.al && i >= 0) openMG(i); } };
 onkeyup = e => K[e.code] = 0;
-onmousemove = e => ang = Math.atan2(e.clientY - innerHeight / 2, e.clientX - innerWidth / 2);
-onmousedown = () => G && !mg && S.emit('atk');
-setInterval(() => { if (G) S.emit('in', mg ? { dx: 0, dy: 0 } : { dx: (K.KeyD || K.ArrowRight ? 1 : 0) - (K.KeyA || K.ArrowLeft ? 1 : 0), dy: (K.KeyS || K.ArrowDown ? 1 : 0) - (K.KeyW || K.ArrowUp ? 1 : 0), run: K.ShiftLeft, a: ang }); }, 33);
+onmousemove = e => !MOB() && (ang = Math.atan2(e.clientY - innerHeight / 2, e.clientX - innerWidth / 2));
+onmousedown = () => G && !mg && !MOB() && S.emit('atk');
+const MOB = () => document.body.classList.contains('mob'), TJ = { x: 0, y: 0, run: 0 };
+setInterval(() => { if (!G) return; const kx = (K.KeyD || K.ArrowRight ? 1 : 0) - (K.KeyA || K.ArrowLeft ? 1 : 0), ky = (K.KeyS || K.ArrowDown ? 1 : 0) - (K.KeyW || K.ArrowUp ? 1 : 0);
+  if ((TJ.x || TJ.y) && !kx && !ky) ang = Math.atan2(TJ.y, TJ.x);
+  S.emit('in', mg ? { dx: 0, dy: 0 } : { dx: kx || TJ.x, dy: ky || TJ.y, run: K.ShiftLeft || TJ.run, a: ang }); }, 33);
 
 // ---------- Loop principal
 const D = {}; let last = performance.now();
@@ -147,7 +150,7 @@ function frame(t) { requestAnimationFrame(frame); const dt = Math.min(.1, (t - l
     else { const k = (now - cut.t) / 8000; ctx.fillStyle = 'rgba(10,15,25,.8)'; ctx.fillRect(0, bar, 320, 132); r2('#7a8a9a', -60 + k * 420, 90, 46, 20); r2('#556', -50 + k * 420, 84, 24, 8); r2('#ff8', -14 + k * 420, 96, 6, 3); r2('#222', -55 + k * 420, 108, 8, 8); r2('#222', -25 + k * 420, 108, 8, 8);
       ctx.globalAlpha = .25; ctx.fillStyle = '#aaa'; ctx.fillRect(250 - k * 60, 100, 8, 22); ctx.globalAlpha = 1; ctx.fillStyle = '#9fd'; ctx.fillText('SOBREVIVESTE À NOITE', 160, 168); } }
   // Áudio dinâmico
-  const moving = K.KeyW || K.KeyA || K.KeyS || K.KeyD;
+  const moving = K.KeyW || K.KeyA || K.KeyS || K.KeyD || TJ.x || TJ.y;
   if (m.r == 's' && mo && m.al && !cutting) { hb -= dt; if (hb <= 0) { const k = Math.max(0, 1 - Math.hypot(mo.x - m.x, mo.y - m.y) / 260); if (k > 0) { tone(55, .15, 'sine', .5 * k + .1, 35); setTimeout(() => tone(50, .18, 'sine', .4 * k + .1, 30), 150); } hb = k > 0 ? 1 - .65 * k : .5; } }
   fs -= dt; if (moving && fs <= 0 && !cutting) { noise(.05, .06, 300); fs = K.ShiftLeft ? .25 : .38; }
   const mm = Math.floor(st.t / 60), ss = String(st.t % 60).padStart(2, '0'); $('tm').textContent = `⏱ ${mm}:${ss}  |  GERADORES ${st.gens.filter(g => g.d).length}/4`;
@@ -155,3 +158,16 @@ function frame(t) { requestAnimationFrame(frame); const dt = Math.min(.1, (t - l
     : `HP ${'♥'.repeat(Math.max(0, m.hp))}${m.al ? '' : ' ELIMINADO'}<br>ESTAMINA ${m.st}%${m.en ? ' ∞' : ''}<br>E interagir/curar/esconder | F gerador | SHIFT correr`;
 }
 requestAnimationFrame(frame);
+
+// ---------- Modo telemóvel: joystick + botões de toque
+function dev(d) { if (d == 'mob') { document.body.classList.add('mob'); try { document.documentElement.requestFullscreen?.()?.catch(() => {}); screen.orientation?.lock?.('landscape')?.catch(() => {}); } catch (e) {} } go('m'); }
+const jsk = $('js'), kn = $('kn');
+function jmove(e) { const r = jsk.getBoundingClientRect(), M = r.width / 2; let x = e.clientX - (r.left + M), y = e.clientY - (r.top + M); const L = Math.hypot(x, y); if (L > M) { x *= M / L; y *= M / L; }
+  kn.style.transform = `translate(${x}px,${y}px)`; const n = Math.hypot(x, y) / M; TJ.x = n > .25 ? x / M : 0; TJ.y = n > .25 ? y / M : 0; }
+jsk.onpointerdown = e => { jsk.setPointerCapture(e.pointerId); jmove(e); };
+jsk.onpointermove = e => { if (jsk.hasPointerCapture(e.pointerId)) jmove(e); };
+jsk.onpointerup = jsk.onpointercancel = () => { TJ.x = TJ.y = 0; kn.style.transform = ''; };
+document.querySelectorAll('#tb button').forEach(b => { const k = b.dataset.k;
+  b.onpointerdown = e => { e.preventDefault(); const m = me(); if (k == 'run') TJ.run = 1; else if (k == 'f') { if (mg) return closeMG(); if (!m) return; const i = st.gens.findIndex(g => !g.d && Math.hypot(g.x - m.x, g.y - m.y) < 30); if (m.r == 's' && m.al && i >= 0) openMG(i); } else S.emit(k); };
+  b.onpointerup = b.onpointercancel = b.onpointerleave = () => { if (k == 'run') TJ.run = 0; }; });
+$('mg').onclick = e => { if (e.target.tagName != 'I' && mg?.ph == 's') skillHit(); }; // toque no painel = ESPAÇO do skill check
