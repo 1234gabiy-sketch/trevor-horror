@@ -9,23 +9,32 @@ setInterval(() => { const t = Date.now(); S.emit('ping2', () => { ping = Date.no
 const MN = { siren: ['Siren Head', 0, '#8a8f94'], horse: ['Long Horse', 100, '#cfc9bb'], cat: ['Cartoon Cat', 500, '#15151a'], worm: ['Bridge Worm', 800, '#6b5a4a'], road: ['Country Road Creature', 1200, '#3a3f33'] };
 const SKN = { siren: [['Enferrujado', '#9a5a2a', 150], ['Inverno', '#cfe3ee', 150]], horse: [['Pálido', '#e8e4d8', 120], ['Carvão', '#4a4a4a', 120]], cat: [['Sangrento', '#6a1010', 200], ['Fantasma', '#8a8a99', 200]],
   worm: [['Musgo', '#4a6a3a', 250], ['Ferrugem', '#8a4a2a', 250]], road: [['Cinza', '#6a6f66', 300], ['Noturno', '#1a1f33', 300]] };
-const SVS = [['Padrão', '#6a8caf', 0], ['Detetive', '#8a6a4a', 120], ['Hazmat', '#c9b21a', 200]];
+const SVS = [['Padrão', '#6a8caf', 0], ['Detetive', '#8a6a4a', 120], ['Hazmat', '#c9b21a', 200], ['Sinal Dourado', '#ffd24a', 0, 1]];
 let SV = { coins: 0, own: ['siren'], mon: 'siren', sk: {}, sv: 0 };
 try { Object.assign(SV, JSON.parse(localStorage.getItem('th') || '{}')); } catch (e) {}
 const save = () => { try { localStorage.setItem('th', JSON.stringify(SV)); } catch (e) {} $('co').textContent = SV.coins; }; save();
 const owns = id => SV.own.includes(id);
-const monCol = m => SV.sk[m] >= 0 && owns(m + ':' + SV.sk[m]) ? SKN[m][SV.sk[m]][1] : MN[m][2];
+const monCol = m => SV.sk[m] == 99 && owns('mc') ? '#8a1a4a' : SV.sk[m] >= 0 && owns(m + ':' + SV.sk[m]) ? SKN[m][SV.sk[m]][1] : MN[m][2];
 function shop() { const L = [];
   for (const k in MN) L.push([k, 'Monstro: ' + MN[k][0], MN[k][1]]);
   for (const m in SKN) SKN[m].forEach(([n, c, p], i) => L.push([m + ':' + i, `Skin ${MN[m][0]} ${n}`, p]));
-  SVS.forEach(([n, c, p], i) => i && L.push(['sv:' + i, 'Skin Sobrevivente ' + n, p]));
+  SVS.forEach(([n, c, p, ev], i) => i && (!ev || owns('sv:' + i)) && L.push(['sv:' + i, 'Skin Sobrevivente ' + n, p]));
   $('sl').innerHTML = L.map(([id, n, p]) => `<div>${n} — ${p} 🪙 ${p == 0 || owns(id) ? '<span class="ok">[TEU]</span>' : `<button onclick="buy('${id}',${p})">COMPRAR</button>`}</div>`).join(''); }
 function buy(id, p) { if (SV.coins >= p && !owns(id)) { SV.coins -= p; SV.own.push(id); save(); shop(); } else if (!owns(id)) alert('Moedas insuficientes!'); }
 S.on('coin', n => { if (n) { SV.coins += n; save(); } });
+// ---------- Evento TRANSMISSÃO CORROMPIDA (estado vem do servidor)
+let EV = false, EVG = false, EVMS = 0, EVT = 0;
+S.on('ev', d => { EV = d.on; EVMS = d.ms; EVT = Date.now(); upEv(); });
+function upEv() { document.body.classList.toggle('ev', EV);
+  $('evb').textContent = '🔴 ALERTA: TRANSMISSÃO CORROMPIDA ATIVA (20:30 - 21:30) — 2X MOEDAS SUSTO + FITA DOURADA!';
+  const s = Math.max(0, EVMS - (Date.now() - EVT)) / 1000 | 0, dd = s / 86400 | 0, hh = (s % 86400) / 3600 | 0, mi = (s % 3600) / 60 | 0, c = n => String(n).padStart(2, '0');
+  $('evc').textContent = EV ? '' : `Próxima Transmissão Corrompida: Sábado/Domingo às 20:30 (em ${dd ? dd + 'd ' : ''}${c(hh)}:${c(mi)}:${c(s % 60)})`; }
+setInterval(upEv, 1000);
+S.on('gold', () => { if (!owns('sv:3')) { SV.own.push('sv:3', 'mc'); save(); } $('msg').textContent = '🏆 FITA DOURADA! SKINS DO EVENTO DESBLOQUEADAS'; setTimeout(() => $('msg').textContent = '', 6000); });
 function look() { // preenche seletores do lobby só com o que o jogador possui
   const ms = Object.keys(MN).filter(k => MN[k][1] == 0 || owns(k)); if (!ms.includes(SV.mon)) SV.mon = 'siren';
   $('crs').innerHTML = ms.map(k => `<option value="${k}">${MN[k][0]}</option>`).join(''); $('crs').value = SV.mon;
-  const sk = ['Padrão', ...SKN[SV.mon].map(s => s[0])].map((n, i) => [n, i - 1]).filter(([n, i]) => i < 0 || owns(SV.mon + ':' + i));
+  const sk = ['Padrão', ...SKN[SV.mon].map(s => s[0])].map((n, i) => [n, i - 1]).filter(([n, i]) => i < 0 || owns(SV.mon + ':' + i)); if (owns('mc')) sk.push(['Corrompido (Evento)', 99]);
   $('skm').innerHTML = sk.map(([n, i]) => `<option value="${i}">${n}</option>`).join(''); $('skm').value = SV.sk[SV.mon] ?? -1;
   $('sks').innerHTML = SVS.map(([n], i) => [n, i]).filter(([n, i]) => i == 0 || owns('sv:' + i)).map(([n, i]) => `<option value="${i}">${n}</option>`).join(''); $('sks').value = SV.sv;
   S.emit('creature', SV.mon); S.emit('look', { mc: monCol(SV.mon), sc: SVS[SV.sv][1] }); }
@@ -43,7 +52,7 @@ S.on('room', r => { if (r.state == 'lobby') { G = null; st = null; cut = null; c
   $('pf').innerHTML = '<option value="rand">Aleatório</option>' + r.players.map(p => `<option value="${p.id}">${p.n}</option>`).join(''); $('pf').value = r.pref; $('mp2').value = r.map; });
 S.on('chat', m => { const d = document.createElement('div'); d.textContent = `<${m.n}> ${m.t}`; $('ch').appendChild(d); $('ch').scrollTop = 1e6; });
 $('ci').onkeydown = e => { if (e.key == 'Enter' && e.target.value) { S.emit('chat', e.target.value); e.target.value = ''; } };
-S.on('start', d => { G = d.g; mapT = d.map; buildTiles(); document.querySelectorAll('section').forEach(e => e.classList.remove('on')); $('gm').classList.add('on'); au();
+S.on('start', d => { EVG = !!d.ev; if (EVG) { au(); [0, 2600, 5200].forEach(t => setTimeout(() => { tone(300, 2.4, 'sawtooth', .03, 520); tone(150, 2.4, 'triangle', .04, 260); }, t)); } G = d.g; mapT = d.map; buildTiles(); document.querySelectorAll('section').forEach(e => e.classList.remove('on')); $('gm').classList.add('on'); au();
   cut = { k: 'i', t: Date.now(), m: d.mon }; tone(45, 3.4, 'sawtooth', .25, 70); noise(3, .15, 200); });
 S.on('end', w => { cut = { k: w, t: Date.now() }; closeMG(); w == 'm' ? (noise(3, .4, 150), tone(60, 3, 'sawtooth', .3, 30)) : tone(330, 2, 'triangle', .2, 660); });
 S.on('s', d => { st = d; bs = new Set(); });
@@ -126,7 +135,7 @@ function frame(t) { requestAnimationFrame(frame); const dt = Math.min(.1, (t - l
   for (let ty = Math.max(0, (cy - 100) / 16 | 0); ty <= Math.min(39, (cy + 100) / 16 | 0); ty++) for (let tx = Math.max(0, (cx - 170) / 16 | 0); tx <= Math.min(59, (cx + 170) / 16 | 0); tx++) {
     if (G[ty][tx]) ctx.drawImage(WL, tx * 16, ty * 16); else { ctx.drawImage(FL[(tx * 7 + ty * 13) % 4], tx * 16, ty * 16); if ((tx * 31 + ty * 17) % 53 == 0) { r2('#4a0a0a', tx * 16 + 3, ty * 16 + 6, 9, 5); r2('#6a1010', tx * 16 + 5, ty * 16 + 7, 4, 2); } } }
   for (const i of st.it) { const { x, y } = i;
-    if (i.t == 'm') { r2('#eee', x - 4, y - 3, 8, 6); r2('#d22', x - 1, y - 3, 2, 6); r2('#d22', x - 3, y - 1, 6, 2); } else if (i.t == 'e') { r2('#3c3', x - 2, y - 4, 5, 8); r2('#ff4', x - 2, y - 1, 5, 2); }
+    if (i.t == 'm') { r2('#eee', x - 4, y - 3, 8, 6); r2('#d22', x - 1, y - 3, 2, 6); r2('#d22', x - 3, y - 1, 6, 2); } else if (i.t == 'g') { const gl = 3 + Math.sin(t / 150) * 2; r2('rgba(255,210,60,.25)', x - 8 - gl / 2, y - 8 - gl / 2, 16 + gl, 14 + gl); r2('#ffd24a', x - 4, y - 3, 8, 6); r2('#7a5a00', x - 2, y - 1, 4, 2); } else if (i.t == 'e') { r2('#3c3', x - 2, y - 4, 5, 8); r2('#ff4', x - 2, y - 1, 5, 2); }
     else { r2('#2d3640', x - 5, y - 8, 10, 15); r2('#111', x - 4, y - 6, 8, 1); r2('#111', x - 4, y - 4, 8, 1); } }
   st.gens.forEach(g => { r2('#333', g.x - 7, g.y - 6, 14, 12); r2('#555', g.x - 7, g.y - 6, 14, 2); r2(g.d ? '#4f4' : '#f44', g.x - 1, g.y - 3, 2, 2); r2('#222', g.x - 5, g.y + 1, 10, 3); });
   const rv = m.r == 'm' && m.rv;
@@ -140,7 +149,7 @@ function frame(t) { requestAnimationFrame(frame); const dt = Math.min(.1, (t - l
   ctx.fillStyle = 'rgba(150,170,185,.04)'; for (let i = 0; i < 4; i++) ctx.fillRect(0, i * 45 + Math.sin(t / 2000 + i) * 10, 320, 30);
   dust.forEach(d => { d.x = (d.x + d.v + 320) % 320; d.y = (d.y + Math.sin(t / 1000 + d.x) * .1 + 180) % 180; r2('rgba(200,210,200,.25)', d.x, d.y, 1, 1); });
   ctx.fillStyle = 'rgba(255,255,255,.07)'; for (let i = 0; i < 120; i++) ctx.fillRect(R() * 320 | 0, R() * 180 | 0, 1, 1);
-  const v = ctx.createRadialGradient(160, 90, 70, 160, 90, 200); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(0,0,0,.8)'); ctx.fillStyle = v; ctx.fillRect(0, 0, 320, 180);
+  const v = ctx.createRadialGradient(160, 90, 70, 160, 90, 200); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, EVG ? 'rgba(70,0,10,.85)' : 'rgba(0,0,0,.8)'); ctx.fillStyle = v; ctx.fillRect(0, 0, 320, 180); if (EVG) { ctx.fillStyle = 'rgba(160,10,30,' + (.07 + Math.sin(t / 700) * .02) + ')'; ctx.fillRect(0, 0, 320, 180); }
   if (blind) { ctx.fillStyle = `rgba(20,25,28,${blind})`; ctx.fillRect(0, 0, 320, 180); }
   if (pulse > now || m.sn) { cv.style.filter = `hue-rotate(${R() * 80}deg) contrast(1.5)`; cv.style.transform = `translate(${R() * 8 - 4}px,${R() * 6 - 3}px)`; } else cv.style.filter = cv.style.transform = '';
   // Cutscenes: barras de cinema + texto
@@ -153,7 +162,7 @@ function frame(t) { requestAnimationFrame(frame); const dt = Math.min(.1, (t - l
   const moving = K.KeyW || K.KeyA || K.KeyS || K.KeyD || TJ.x || TJ.y;
   if (m.r == 's' && mo && m.al && !cutting) { hb -= dt; if (hb <= 0) { const k = Math.max(0, 1 - Math.hypot(mo.x - m.x, mo.y - m.y) / 260); if (k > 0) { tone(55, .15, 'sine', .5 * k + .1, 35); setTimeout(() => tone(50, .18, 'sine', .4 * k + .1, 30), 150); } hb = k > 0 ? 1 - .65 * k : .5; } }
   fs -= dt; if (moving && fs <= 0 && !cutting) { noise(.05, .06, 300); fs = K.ShiftLeft ? .25 : .38; }
-  const mm = Math.floor(st.t / 60), ss = String(st.t % 60).padStart(2, '0'); $('tm').textContent = `⏱ ${mm}:${ss}  |  GERADORES ${st.gens.filter(g => g.d).length}/4`;
+  const mm = Math.floor(st.t / 60), ss = String(st.t % 60).padStart(2, '0'); $('tm').textContent = (EVG ? '🔴 ' : '') + `⏱ ${mm}:${ss}  |  GERADORES ${st.gens.filter(g => g.d).length}/4`;
   $('hud').innerHTML = cutting ? '' : m.r == 'm' ? `MONSTRO: ${MN[m.c][0].toUpperCase()}<br>Q ${m.c1 ? m.c1 + 's' : 'PRONTO'} | E ${m.c2 ? m.c2 + 's' : 'PRONTO'} | Clique/ESPAÇO atacar`
     : `HP ${'♥'.repeat(Math.max(0, m.hp))}${m.al ? '' : ' ELIMINADO'}<br>ESTAMINA ${m.st}%${m.en ? ' ∞' : ''}<br>E interagir/curar/esconder | F gerador | SHIFT correr`;
 }
