@@ -1,8 +1,17 @@
 // Servidor autoritativo v2: salas, 5 monstros com habilidades Q/E + cooldown, geradores, relógio dinâmico.
+const FORCE_EVENT = false; // true = força o evento a qualquer hora (para testares)
 const express = require('express'), http = require('http'), { Server } = require('socket.io');
 const app = express(); app.use(express.static(__dirname + '/public'));
 const srv = http.createServer(app), io = new Server(srv);
 const W = 60, H = 40, T = 16, rooms = {};
+// ---- Evento de fim de semana: TRANSMISSÃO CORROMPIDA (Sáb/Dom 20:30-21:30, fuso Europe/Lisbon)
+const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+function lis() { const o = {}; new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Lisbon', weekday: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).formatToParts(new Date()).forEach(x => o[x.type] = x.value);
+  return { d: DAYS.indexOf(o.weekday), h: +o.hour, m: +o.minute, s: +o.second }; }
+function evInfo() { const t = lis(), M = t.d * 1440 + t.h * 60 + t.m, md = M % 1440, on = FORCE_EVENT || (t.d >= 5 && md >= 1230 && md < 1290);
+  const next = [5 * 1440 + 1230, 6 * 1440 + 1230, 12 * 1440 + 1230].find(x => x > M); return { on, ms: Math.max(0, (next - M) * 60000 - t.s * 1000) }; }
+const eventOn = () => evInfo().on;
+
 const SPD = { siren: 85, horse: 78, cat: 80, worm: 76, road: 82 }, MAPN = { forest: 'Floresta Nebulosa', mall: 'Centro Comercial' };
 let sd = 7; const rnd = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
 
@@ -24,38 +33,40 @@ function mv(r, p, dx, dy, s, dt) {
   if (gh || !solid(r, p.x + dx, p.y)) p.x = Math.max(10, Math.min(W * T - 10, p.x + dx));
   if (gh || !solid(r, p.x, p.y + dy)) p.y = Math.max(10, Math.min(H * T - 10, p.y + dy));
 }
-const coin = (id, n) => io.to(id).emit('coin', n);
+const coin = (r, id, n) => io.to(id).emit('coin', n * (r.ev ? 2 : 1)); // evento: moedas a dobrar
 
 function startGame(r) {
   const now = Date.now(); r.state = 'play'; r.g = genMap(r.map); r.t = 240; r.frz = now + 3600; r.blk = []; r.fogs = [];
-  const ids = Object.keys(r.p);
+  const ids = Object.keys(r.p); r.ev = eventOn(); // o evento fica fixo durante a partida
   r.mon = r.pref !== 'rand' && r.p[r.pref] ? r.pref : ids[Math.random() * ids.length | 0];
   r.gens = Array.from({ length: 4 }, () => ({ ...free(r.g), d: false }));
   r.items = []; let k = 0;
   for (const [t, n] of [['m', 3], ['e', 3], ['l', 8]]) for (let i = 0; i < n; i++) r.items.push({ id: k++, t, ...free(r.g) });
+  if (r.ev) r.items.push({ id: k++, t: 'g', ...free(r.g) }); // Fita VHS Dourada
   let i = 0;
   for (const id of ids) { const p = r.p[id], m = id == r.mon;
-    Object.assign(p, { role: m ? 'm' : 's', cr: m ? (r.cr[id] || 'siren') : '', col: m ? p.mc : p.sc, hp: 2, st: 100, hid: false, al: true, cd: 0, atk: 0, c1: 0, c2: 0, stun: 0, inv: 0, gh: 0, bo: 0, rev: 0, dbl: 0, en: 0, in: { dx: 0, dy: 0 }, ang: 0 },
+    Object.assign(p, { role: m ? 'm' : 's', cr: m ? (r.cr[id] || 'siren') : '', col: m ? p.mc : p.sc, gold: false, hp: 2, st: 100, hid: false, al: true, cd: 0, atk: 0, c1: 0, c2: 0, stun: 0, inv: 0, gh: 0, bo: 0, rev: 0, dbl: 0, en: 0, in: { dx: 0, dy: 0 }, ang: 0 },
       m ? free(r.g) : { x: 24 + i++ * 14, y: 28 }); }
-  io.to(r.code).emit('start', { g: r.g, map: r.map, mon: r.mon });
+  io.to(r.code).emit('start', { g: r.g, map: r.map, mon: r.mon, ev: r.ev });
 }
 function end(r, win) {
   if (r.state != 'play') return; r.state = 'end';
-  for (const p of Object.values(r.p)) coin(p.id, win == 'm' ? (p.role == 'm' ? 100 : 0) : (p.role == 's' && p.al ? 50 : 0));
+  for (const p of Object.values(r.p)) coin(r, p.id, win == 'm' ? (p.role == 'm' ? 100 : 0) : (p.role == 's' && p.al ? 50 : 0));
+  if (win == 's') for (const p of Object.values(r.p)) if (p.role == 's' && p.al && p.gold) io.to(p.id).emit('gold');
   io.to(r.code).emit('end', win);
   setTimeout(() => { r.state = 'lobby'; Object.values(r.p).forEach(p => p.ready = false); sendRoom(r); }, 8000);
 }
-function hit(r, m, q, d) { q.hp -= d; q.hid = false; if (q.hp <= 0 && q.al) { q.al = false; r.t += 30; coin(m.id, 25); } }
+function hit(r, m, q, d) { q.hp -= d; q.hid = false; if (q.hp <= 0 && q.al) { q.al = false; r.t += 30; coin(r, m.id, 25); } }
 
 function tick(r, dt) {
   const now = Date.now(), ps = Object.values(r.p), go = now > r.frz;
   r.blk = []; r.fogs = r.fogs.filter(f => f.t > now);
-  for (const p of ps) { p.c1 = Math.max(0, p.c1 - dt); p.c2 = Math.max(0, p.c2 - dt); p.cd = Math.max(0, p.cd - dt);
+  for (const p of ps) { const kc = r.ev ? 1.5 : 1; p.c1 = Math.max(0, p.c1 - dt * kc); p.c2 = Math.max(0, p.c2 - dt * kc); p.cd = Math.max(0, p.cd - dt);
     if (p.gh && p.gh <= now) { p.gh = 0; if (solid(r, p.x, p.y)) Object.assign(p, free(r.g)); }
     if (!go || !p.al || p.stun > now) continue; const i = p.in, mov = i.dx || i.dy;
     if (p.role == 'm') { if (mov) mv(r, p, i.dx, i.dy, SPD[p.cr] * (p.bo > now ? (p.cr == 'cat' ? 1.6 : 1.8) : 1), dt); continue; }
     if (p.hid) continue;
-    const inf = p.en > now, run = i.run && (p.st > 0 || inf) && mov; if (!inf) p.st = Math.min(100, Math.max(0, p.st + (run ? -28 : 14) * dt)); else p.st = 100;
+    const inf = p.en > now, run = i.run && (p.st > 0 || inf) && mov; if (!inf) p.st = Math.min(100, Math.max(0, p.st + (run ? -28 : 14 * (r.ev ? 1.5 : 1)) * dt)); else p.st = 100;
     if (mov) mv(r, p, i.dx, i.dy, run ? 105 : 62, dt); }
   if (go) r.t -= dt;
   const sv = ps.filter(p => p.role == 's');
@@ -78,6 +89,7 @@ function interact(r, p) {
   const it = r.items.find(i => dist(p, i) < 20);
   if (it) { if (it.t == 'l') { p.hid = true; p.x = it.x; p.y = it.y; }
     else if (it.t == 'm' && p.hp < 2) { p.hp++; r.items.splice(r.items.indexOf(it), 1); }
+    else if (it.t == 'g') { p.gold = true; r.items.splice(r.items.indexOf(it), 1); }
     else if (it.t == 'e') { p.en = Date.now() + 8000; r.items.splice(r.items.indexOf(it), 1); } return; }
   const ally = Object.values(r.p).find(q => q != p && q.role == 's' && q.al && q.hp < 2 && dist(p, q) < 24); if (ally) ally.hp++;
 }
@@ -103,8 +115,9 @@ setInterval(() => { for (const r of Object.values(rooms)) if (r.state != 'lobby'
 
 const info = r => ({ code: r.code, host: r.host, pub: r.pub, map: r.map, mapn: MAPN[r.map], pref: r.pref, state: r.state, players: Object.values(r.p).map(p => ({ id: p.id, n: p.n, ready: p.ready })) });
 const sendRoom = r => io.to(r.code).emit('room', info(r));
+setInterval(() => io.emit('ev', evInfo()), 30000);
 io.on('connection', s => {
-  let r = null;
+  let r = null; s.emit('ev', evInfo());
   const join = (code, name) => { const x = rooms[code]; if (!x) return 'Sala não existe'; if (x.state != 'lobby') return 'Jogo em curso'; if (Object.keys(x.p).length >= 5) return 'Sala cheia';
     r = x; s.join(code); r.p[s.id] = { id: s.id, n: String(name || 'Anon').slice(0, 12), ready: false, x: 0, y: 0, in: {}, mc: '#8a8f94', sc: '#6a8caf' }; sendRoom(r); return null; };
   const pl = () => r?.state == 'play' && r.p[s.id];
@@ -124,7 +137,7 @@ io.on('connection', s => {
   s.on('atk', () => { const p = pl(); p && attack(r, p); });
   s.on('e', () => { const p = pl(); p && interact(r, p); });
   s.on('q', () => { const p = pl(); p && ability(r, p, 1); });
-  s.on('gen', ({ i }) => { const p = pl(), g = r?.gens[i]; if (p && p.role == 's' && p.al && g && !g.d && dist(p, g) < 36) { g.d = true; r.t = Math.max(5, r.t - 35); coin(s.id, 20); } });
+  s.on('gen', ({ i }) => { const p = pl(), g = r?.gens[i]; if (p && p.role == 's' && p.al && g && !g.d && dist(p, g) < 36) { g.d = true; r.t = Math.max(5, r.t - 35); coin(r, s.id, 20); } });
   s.on('disconnect', () => { if (!r) return; delete r.p[s.id]; const ids = Object.keys(r.p);
     if (!ids.length) delete rooms[r.code]; else { if (r.host == s.id) r.host = ids[0]; sendRoom(r); } });
 });
