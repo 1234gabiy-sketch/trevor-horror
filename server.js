@@ -37,7 +37,7 @@ const coin = (r, id, n) => io.to(id).emit('coin', n * (r.ev ? 2 : 1)); // evento
 
 function startGame(r) {
   const now = Date.now(); r.state = 'play'; r.g = genMap(r.map); r.t = 240; r.frz = now + 3600; r.blk = []; r.fogs = [];
-  const ids = Object.keys(r.p); r.ev = eventOn(); // o evento fica fixo durante a partida
+  const ids = Object.keys(r.p); r.ev = eventOn(); r.fk = 0; // o evento fica fixo durante a partida
   r.mon = r.pref !== 'rand' && r.p[r.pref] ? r.pref : ids[Math.random() * ids.length | 0];
   r.gens = Array.from({ length: 4 }, () => ({ ...free(r.g), d: false }));
   r.items = []; let k = 0;
@@ -56,7 +56,8 @@ function end(r, win) {
   io.to(r.code).emit('end', win);
   setTimeout(() => { r.state = 'lobby'; Object.values(r.p).forEach(p => p.ready = false); sendRoom(r); }, 8000);
 }
-function hit(r, m, q, d) { q.hp -= d; q.hid = false; if (q.hp <= 0 && q.al) { q.al = false; r.t += 30; coin(r, m.id, 25); } }
+function hit(r, m, q, d) { q.hp -= d; q.hid = false; if (q.hp <= 0 && q.al) { q.al = false; r.t += 30; coin(r, m.id, 25);
+    if (!r.fk && m.cr == 'cat') { r.fk = 1; r.frz = Date.now() + 1800; io.to(r.code).emit('kill', { mx: m.x | 0, my: m.y | 0, vx: q.x | 0, vy: q.y | 0, vid: q.id, mid: m.id }); } } } // 1ª morte do gato: animação
 
 function tick(r, dt) {
   const now = Date.now(), ps = Object.values(r.p), go = now > r.frz;
@@ -72,14 +73,14 @@ function tick(r, dt) {
   const sv = ps.filter(p => p.role == 's');
   if (r.state == 'play' && go) { if (sv.every(p => !p.al)) end(r, 'm'); else if (r.t <= 0) end(r, 's'); }
   io.to(r.code).volatile.emit('s', { t: Math.max(0, r.t | 0), fz: r.frz > now,
-    p: ps.map(p => ({ id: p.id, x: p.x | 0, y: p.y | 0, a: p.ang, r: p.role, c: p.cr, col: p.col, hp: p.hp, st: p.st | 0, h: p.hid, al: p.al, k: p.atk > now,
+    p: ps.map(p => ({ id: p.id, x: p.x | 0, y: p.y | 0, a: p.ang, r: p.role, c: p.cr, col: p.col, hp: p.hp, st: p.st | 0, h: p.hid, al: p.al, k: p.atk > now, ak: p.atk > now ? +(1 - (p.atk - now) / 450).toFixed(2) : -1, ab: p.ab > now ? p.abn : 0, ap: p.ab > now ? +(1 - (p.ab - now) / 700).toFixed(2) : 0, rn: !!(p.in.run && (p.in.dx || p.in.dy)) || p.bo > now,
       c1: Math.ceil(p.c1), c2: Math.ceil(p.c2), inv: p.inv > now, rv: p.rev > now, sn: p.stun > now, en: p.en > now, gh: p.gh > now })),
     it: r.items, gens: r.gens, fogs: r.fogs });
 }
 
 function attack(r, p) {
   if (!p.al || p.role != 'm' || p.cd > 0 || Date.now() < r.frz) return;
-  p.cd = 1.2; p.atk = Date.now() + 200; const reach = { horse: 30, cat: 28 }[p.cr] || 24, dmg = p.dbl > Date.now() ? 2 : 1; p.dbl = 0;
+  p.cd = 1.2; p.atk = Date.now() + 450; const reach = { horse: 30, cat: 28 }[p.cr] || 24, dmg = p.dbl > Date.now() ? 2 : 1; p.dbl = 0;
   for (const q of Object.values(r.p)) if (q.role == 's' && q.al && dist(p, q) < (q.hid ? 14 : reach)) hit(r, p, q, dmg);
 }
 function interact(r, p) {
@@ -97,6 +98,7 @@ function ability(r, p, n) {
   const now = Date.now(); if (p.role != 'm' || !p.al || now < r.frz || p['c' + n] > 0) return;
   const dx = Math.cos(p.ang), dy = Math.sin(p.ang), sv = Object.values(r.p).filter(q => q.role == 's' && q.al), c = p.cr;
   const near = lim => sv.filter(q => !q.hid && dist(p, q) < lim).sort((a, b) => dist(p, a) - dist(p, b))[0];
+  p.ab = now + 700; p.abn = n; // para animação de habilidade no cliente
   if (n == 1) { p.c1 = 10;
     if (c == 'siren') sv.forEach(q => { if (dist(p, q) < 220) { q.stun = now + 1500; io.to(q.id).emit('pulse'); } });
     if (c == 'horse') { const hs = new Set(); for (let d = 8; d <= 110; d += 8) sv.forEach(q => { if (!q.hid && !hs.has(q) && Math.hypot(p.x + dx * d - q.x, p.y + dy * d - q.y) < 14) { hs.add(q); hit(r, p, q, 1); } }); }
